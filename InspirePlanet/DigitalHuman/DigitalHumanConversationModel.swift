@@ -1,0 +1,198 @@
+import Foundation
+
+@MainActor
+final class DigitalHumanConversationModel: ObservableObject {
+    @Published var draft = ""
+    @Published private(set) var turns: [DigitalHumanTurn]
+    @Published private(set) var activity: DigitalHumanActivity = .idle
+    @Published var errorMessage: String?
+    @Published private(set) var highlightedTurnID: UUID?
+    @Published private(set) var highlightedRange: NSRange?
+
+    let lily = LilyDigitalHumanController.shared
+    private let service = InspireConversationService()
+    private let recognizer = InspireSpeechRecognizer()
+    private let speaker = InspireSpeechSynthesizer()
+    private let historyKey = "inspireplanet.digital-human.history"
+    private var requestGeneration = 0
+    private let lilyGreetings = [
+        "你好，我是 Lily，很高兴认识你。",
+        "嗨，见到你真开心，今天想聊点什么？",
+        "你好呀，我一直在这里等你。",
+        "欢迎回来，我是你的数字人伙伴 Lily。",
+        "很高兴和你见面，有什么可以帮你的吗？",
+        "嗨，我是 Lily，愿你今天有个好心情。",
+        "你好，轻松一点，我们慢慢聊。",
+        "见到你真好，我已经准备好听你说啦。",
+        "你好呀，今天也让我陪在你身边吧。",
+        "嗨，朋友，又到了我们打招呼的时间。"
+    ]
+    private let leoGreetings = [
+        "你好，我是 Leo，很高兴认识你。",
+        "嗨，我是 Leo，今天想一起聊点什么？",
+        "欢迎来到灵感星球，我已经准备好啦。",
+        "你好呀，有什么新想法都可以告诉我。",
+        "见到你真高兴，让我们开始今天的对话吧。",
+        "嗨，朋友，我会认真听你说。",
+        "你好，我是你的创意伙伴 Leo。",
+        "欢迎回来，今天也一起寻找灵感吧。"
+    ]
+
+    init() {
+        if let data = UserDefaults.standard.data(forKey: historyKey),
+           let saved = try? JSONDecoder().decode([DigitalHumanTurn].self, from: data), !saved.isEmpty {
+            turns = saved
+        } else {
+            turns = [DigitalHumanTurn(role: .assistant, content: "你好，我是 Lily。你可以直接说话，也可以输入文字和我交流。")]
+        }
+        migrateDefaultGreeting(for: lily.persona)
+    }
+
+    var canSend: Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && activity != .thinking
+    }
+
+    var canPlayGreeting: Bool {
+        activity == .idle
+    }
+
+    var persona: DigitalHumanPersona {
+        lily.persona
+    }
+
+    func selectPersona(_ persona: DigitalHumanPersona) {
+        guard activity == .idle, lily.persona != persona else { return }
+        errorMessage = nil
+        migrateDefaultGreeting(for: persona)
+        lily.switchPersona(to: persona)
+    }
+
+    func toggleListening() {
+        activity == .listening ? stopListeningAndSend() : startListening()
+    }
+
+    func startListening() {
+        guard activity != .thinking else { return }
+        stopSpeaking()
+        errorMessage = nil
+        recognizer.requestAuthorization { [weak self] granted, message in
+            guard let self else { return }
+            if !granted {
+                self.errorMessage = message ?? "语音权限未开启"
+                return
+            }
+            self.activity = .listening
+            self.recognizer.start { [weak self] text in
+                DispatchQueue.main.async { self?.draft = text }
+            } onError: { [weak self] message in
+                DispatchQueue.main.async {
+                    self?.errorMessage = "语音识别失败：\(message)"
+                    self?.activity = .idle
+                }
+            }
+        }
+    }
+
+    func stopListeningAndSend() {
+        recognizer.stop()
+        activity = .idle
+        send()
+    }
+
+    func send() {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, activity != .thinking else { return }
+        stopSpeaking()
+        draft = ""
+        errorMessage = nil
+        turns.append(DigitalHumanTurn(role: .user, content: text))
+        save()
+        activity = .thinking
+        requestGeneration += 1
+        let generation = requestGeneration
+        let context = [InspireChatMessage(
+            role: .system,
+            content: "你是灵感星球的拟人数字人 \(persona.displayName)。请用自然、口语化、简洁的中文回答，内容适合语音播报。"
+        )] + turns.suffix(12).map { InspireChatMessage(role: $0.role, content: $0.content) }
+        service.reply(to: context) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, generation == self.requestGeneration else { return }
+                switch result {
+                case .success(let text):
+                    let answer = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let turn = DigitalHumanTurn(role: .assistant, content: answer.isEmpty ? "我暂时没有拿到有效回答，请稍后再试。" : answer)
+                    self.turns.append(turn)
+                    self.save()
+                    self.activity = .idle
+                    self.read(turn)
+                case .failure(let error):
+                    self.activity = .idle
+                    self.errorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    func read(_ turn: DigitalHumanTurn) {
+        guard activity != .thinking, activity != .listening else { return }
+        speak(turn.content, turnID: turn.id)
+    }
+
+    func playRandomGreeting() {
+        guard canPlayGreeting else { return }
+        let greetings = persona == .lily ? lilyGreetings : leoGreetings
+        speak(greetings.randomElement() ?? greetings[0])
+    }
+
+    private func speak(_ text: String, turnID: UUID? = nil) {
+        stopSpeaking()
+        highlightedTurnID = turnID
+        let spoken = speechText(text)
+        speaker.speak(spoken, voice: persona.voice, digitalHuman: lily) { [weak self] in
+            DispatchQueue.main.async { self?.activity = .speaking }
+        } onFinish: { [weak self] in
+            DispatchQueue.main.async {
+                self?.activity = .idle
+                self?.highlightedTurnID = nil
+                self?.highlightedRange = nil
+            }
+        } onRangeChange: { [weak self] range in
+            DispatchQueue.main.async { self?.highlightedRange = range }
+        }
+    }
+
+    func stopAll() {
+        requestGeneration += 1
+        recognizer.stop()
+        stopSpeaking()
+        activity = .idle
+    }
+
+    private func stopSpeaking() {
+        speaker.stop()
+        highlightedTurnID = nil
+        highlightedRange = nil
+        if activity == .speaking { activity = .idle }
+    }
+
+    private func save() {
+        UserDefaults.standard.set(try? JSONEncoder().encode(turns), forKey: historyKey)
+    }
+
+    private func migrateDefaultGreeting(for persona: DigitalHumanPersona) {
+        guard turns.count == 1, turns[0].role == .assistant,
+              turns[0].content.contains("你可以直接说话") else { return }
+        turns[0] = DigitalHumanTurn(
+            role: .assistant,
+            content: "你好，我是 \(persona.displayName)。你可以直接说话，也可以输入文字和我交流。"
+        )
+        save()
+    }
+
+    private func speechText(_ value: String) -> String {
+        var text = value.replacingOccurrences(of: #"(?s)```.*?```"#, with: "代码内容已显示在对话中。", options: .regularExpression)
+        text = text.replacingOccurrences(of: #"https?://\S+"#, with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: #"[*_#>`~-]"#, with: "", options: .regularExpression)
+        return String(text.prefix(700))
+    }
+}

@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+
+# Xcode user-specific files
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+
+# Xcode build products
+DerivedData/
+build/
+*.xcarchive
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager local caches
+.build/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+
+# Signing credentials and local secrets
+*.p12
+*.p8
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+!.env.example
+Secrets.swift
+*.private.xcconfig
+
+# Local-only resource exceeding GitHub's 100 MB per-file limit
+InspirePlanet/Resources/duix/gj_dh_res/wenet.o
