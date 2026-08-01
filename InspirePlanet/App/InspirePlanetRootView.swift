@@ -5,6 +5,6 @@ struct InspirePlanetRootView: View {
 
     var body: some View {
         DigitalHumanConversationView(model: model)
-            .preferredColorScheme(.light)
+            .preferredColorScheme(.dark)
     }
 }
