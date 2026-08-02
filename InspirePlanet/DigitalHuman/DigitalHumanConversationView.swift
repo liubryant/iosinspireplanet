@@ -118,7 +118,7 @@ struct DigitalHumanConversationView: View {
                         .allowsHitTesting(false)
 
                     conversation
-                        .frame(maxHeight: proxy.size.height * (inputFocused ? 0.22 : 0.27))
+                        .frame(maxHeight: proxy.size.height * (inputFocused ? 0.147 : 0.18))
 
                     composer
 
@@ -173,6 +173,9 @@ struct DigitalHumanConversationView: View {
             .background(Color(red: 0.11, green: 0.13, blue: 0.15).ignoresSafeArea())
             .animation(.spring(response: 0.34, dampingFraction: 0.86), value: isSidebarPresented)
         }
+        // 由当前页面统一按照通知中的实际键盘高度避让，避免 SwiftUI 自动
+        // 压缩与手动 padding 同时生效造成输入框过高。
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .onAppear {
             model.lily.setPageVisible(true)
             if model.lily.state.isReady {
@@ -214,10 +217,12 @@ struct DigitalHumanConversationView: View {
         GeometryReader { proxy in
             ZStack {
                 Color.black
-                Image("LilyPortrait")
-                    .resizable().scaledToFill()
-                    .frame(width: proxy.size.width, height: proxy.size.height).clipped()
-                    .opacity(showLiveLily ? 0 : (lily.persona == .lily ? 1 : 0))
+                if let portraitAssetName = lily.persona.portraitAssetName {
+                    Image(portraitAssetName)
+                        .resizable().scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height).clipped()
+                        .opacity(showLiveLily ? 0 : 1)
+                }
                 LilyDigitalHumanSurface(controller: lily)
                     .opacity(showLiveLily ? 1 : 0)
             }
@@ -313,7 +318,7 @@ struct DigitalHumanConversationView: View {
                             Circle()
                                 .fill(lily.persona == persona ? Color.white.opacity(0.24) : Color.black.opacity(0.12))
                                 .frame(width: 30, height: 30)
-                            Image(persona == .lily ? "LilyThumbnail" : "LeoThumbnail")
+                            Image(persona.thumbnailAssetName)
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: 30, height: 30)
@@ -333,9 +338,7 @@ struct DigitalHumanConversationView: View {
                         Group {
                             if lily.persona == persona {
                                 LinearGradient(
-                                    colors: persona == .lily
-                                        ? [Color(red: 0.48, green: 0.39, blue: 0.94), Color(red: 0.91, green: 0.42, blue: 0.72)]
-                                        : [Color(red: 0.12, green: 0.46, blue: 0.86), Color(red: 0.18, green: 0.72, blue: 0.72)],
+                                    colors: selectedPersonaGradient(for: persona),
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
@@ -358,6 +361,17 @@ struct DigitalHumanConversationView: View {
         .clipShape(Capsule())
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func selectedPersonaGradient(for persona: DigitalHumanPersona) -> [Color] {
+        switch persona {
+        case .leo:
+            return [Color(red: 0.12, green: 0.46, blue: 0.86), Color(red: 0.18, green: 0.72, blue: 0.72)]
+        case .lily:
+            return [Color(red: 0.48, green: 0.39, blue: 0.94), Color(red: 0.91, green: 0.42, blue: 0.72)]
+        case .sofia:
+            return [Color(red: 0.23, green: 0.52, blue: 0.91), Color(red: 0.55, green: 0.43, blue: 0.86)]
+        }
     }
 
     private func revealReadyLily() {
@@ -400,6 +414,9 @@ struct DigitalHumanConversationView: View {
             .padding(.horizontal, 10)
             .onChange(of: model.turns.count) { _ in
                 if let last = model.turns.last { withAnimation { reader.scrollTo(last.id, anchor: .bottom) } }
+            }
+            .onChange(of: model.turns.last?.content) { _ in
+                if let last = model.turns.last { reader.scrollTo(last.id, anchor: .bottom) }
             }
             .onAppear {
                 guard let last = model.turns.last else { return }
@@ -720,6 +737,7 @@ private struct InspireAccountView: View {
             .preferredColorScheme(.light)
         }
         .onDisappear { timer?.cancel() }
+        .edgeSwipeBack(perform: close)
     }
 
     private var loginContent: some View {
@@ -810,7 +828,7 @@ private struct InspireAccountView: View {
             }
             .background(Color.white.ignoresSafeArea())
             .navigationBarTitle("", displayMode: .inline)
-            .navigationBarItems(leading: Button("取消") { close() })
+            .navigationBarItems(leading: navigationBackButton(action: close))
         }
         .navigationViewStyle(.stack)
     }
@@ -820,15 +838,18 @@ private struct InspireAccountView: View {
             ZStack {
                 Color.black.opacity(0.28).ignoresSafeArea().onTapGesture { close() }
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack {
+                    HStack(spacing: 10) {
+                        Button(action: close) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(inspireText)
+                                .frame(width: 34, height: 34)
+                        }
                         VStack(alignment: .leading, spacing: 6) {
                             Text("账号管理").font(.system(size: 22, weight: .bold)).foregroundColor(inspireText)
                             Text("管理当前登录账号").font(.system(size: 13)).foregroundColor(.gray)
                         }
                         Spacer()
-                        Button(action: { close() }) {
-                            Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.black).frame(width: 34, height: 34)
-                        }
                     }
 
                     HStack(spacing: 14) {
@@ -921,6 +942,14 @@ private struct InspireAccountView: View {
     private func close() {
         if let onClose { onClose() } else { dismiss() }
     }
+
+    private func navigationBackButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(inspireText)
+        }
+    }
 }
 
 private struct InspireSetPasswordView: View {
@@ -960,13 +989,16 @@ private struct InspireSetPasswordView: View {
             }
             .background(Color.white)
             .navigationBarTitle("修改密码", displayMode: .inline)
-            .navigationBarItems(leading: Button("取消") { dismiss() })
+            .navigationBarItems(leading: Button(action: { dismiss() }) {
+                Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
+            })
         }
         .navigationViewStyle(.stack)
         .alert("修改成功", isPresented: $showSuccess) {
             Button("完成") { dismiss() }
         } message: { Text("现在可以使用新密码登录。") }
         .onDisappear { timer?.cancel() }
+        .edgeSwipeBack { dismiss() }
     }
 
     private var codeField: some View {
@@ -1046,7 +1078,9 @@ private struct InspireDeleteAccountView: View {
             }
             .background(Color.white)
             .navigationBarTitle("注销账号", displayMode: .inline)
-            .navigationBarItems(leading: Button("取消") { dismiss() })
+            .navigationBarItems(leading: Button(action: { dismiss() }) {
+                Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
+            })
         }
         .navigationViewStyle(.stack)
         .alert("确认注销账号？", isPresented: $showConfirmation) {
@@ -1054,6 +1088,7 @@ private struct InspireDeleteAccountView: View {
             Button("取消", role: .cancel) {}
         } message: { Text("注销后账号及数据将被永久删除，且无法恢复。") }
         .onDisappear { timer?.cancel() }
+        .edgeSwipeBack { dismiss() }
     }
     private var maskedPhone: String { phone.count >= 7 ? String(phone.prefix(3)) + "****" + String(phone.suffix(4)) : phone }
     private var canSend: Bool { phone.count == 11 && countdown == 0 && !isSending && !isDeleting }
@@ -1075,7 +1110,7 @@ private struct InspireDeleteAccountView: View {
     }
 }
 
-private enum InspireAccountSession {
+enum InspireAccountSession {
     static func login(phone: String, token: String) {
         UserDefaults.standard.set(true, forKey: "inspire.user.isLoggedIn")
         UserDefaults.standard.set(phone, forKey: "inspire.user.phone")
@@ -1086,9 +1121,12 @@ private enum InspireAccountSession {
         UserDefaults.standard.removeObject(forKey: "inspire.user.phone")
         InspireKeychainStore().delete(account: "inspire.user.accessToken")
     }
+    static func accessToken() -> String? {
+        InspireKeychainStore().get(account: "inspire.user.accessToken")
+    }
 }
 
-private final class InspireKeychainStore {
+final class InspireKeychainStore {
     private var service: String { Bundle.main.bundleIdentifier ?? "cn.cjym.inspireplanet" }
     func set(_ value: String, account: String) throws {
         delete(account: account)
@@ -1099,6 +1137,19 @@ private final class InspireKeychainStore {
     }
     func delete(account: String) {
         SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account] as CFDictionary)
+    }
+    func get(account: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 }
 
@@ -1161,9 +1212,12 @@ private struct InspireSidebarDetailView: View {
             }
             .navigationTitle(page.title)
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(trailing: Button("完成") { close() })
+            .navigationBarItems(leading: Button(action: close) {
+                Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
+            })
         }
         .navigationViewStyle(.stack)
+        .edgeSwipeBack(perform: close)
     }
 
     private var description: String {
@@ -1253,6 +1307,24 @@ private struct InspireSidebarDetailView: View {
 
     private func close() {
         if let onClose { onClose() } else { dismiss() }
+    }
+}
+
+private extension View {
+    /// 自定义二级页面没有 UINavigationController 的交互返回能力，统一补充
+    /// 左侧边缘右滑手势；严格限制起点与方向，避免抢占 ScrollView 等操作。
+    func edgeSwipeBack(perform action: @escaping () -> Void) -> some View {
+        simultaneousGesture(
+            DragGesture(minimumDistance: 12, coordinateSpace: .global)
+                .onEnded { value in
+                    let horizontal = value.translation.width
+                    let vertical = abs(value.translation.height)
+                    guard value.startLocation.x <= 28,
+                          horizontal >= 80,
+                          horizontal > vertical * 1.25 else { return }
+                    action()
+                }
+        )
     }
 }
 
@@ -1386,10 +1458,10 @@ private struct DigitalHumanBubble: View {
             if turn.role == .user { Spacer(minLength: 45) }
             VStack(alignment: .leading, spacing: 5) {
                 Text(turn.role == .user ? "我" : assistantName)
-                    .font(.caption.bold())
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundColor(Color.white.opacity(0.56))
                 Text(attributedText)
-                    .font(.system(size: 17))
+                    .font(.system(size: 16))
                     .foregroundColor(Color.white.opacity(0.82))
                     .textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                     .contextMenu {

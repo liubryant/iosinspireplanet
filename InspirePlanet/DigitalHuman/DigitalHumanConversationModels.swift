@@ -17,12 +17,13 @@ enum DigitalHumanActivity {
 }
 
 enum DigitalHumanVoice {
-    case female, male
+    case female, male, meijia
 }
 
 enum DigitalHumanPersona: String, CaseIterable, Identifiable {
-    case lily
     case leo
+    case lily
+    case sofia
 
     var id: String { rawValue }
 
@@ -30,6 +31,7 @@ enum DigitalHumanPersona: String, CaseIterable, Identifiable {
         switch self {
         case .lily: return "Lily"
         case .leo: return "Leo"
+        case .sofia: return "Sofia"
         }
     }
 
@@ -37,6 +39,7 @@ enum DigitalHumanPersona: String, CaseIterable, Identifiable {
         switch self {
         case .lily: return "灵感伙伴"
         case .leo: return "创意伙伴"
+        case .sofia: return "知心伙伴"
         }
     }
 
@@ -44,6 +47,23 @@ enum DigitalHumanPersona: String, CaseIterable, Identifiable {
         switch self {
         case .lily: return "Lily"
         case .leo: return "Leo"
+        case .sofia: return "Sofia"
+        }
+    }
+
+    var thumbnailAssetName: String {
+        switch self {
+        case .leo: return "LeoThumbnail"
+        case .lily: return "LilyThumbnail"
+        case .sofia: return "SofiaThumbnail"
+        }
+    }
+
+    var portraitAssetName: String? {
+        switch self {
+        case .leo: return nil
+        case .lily: return "LilyPortrait"
+        case .sofia: return "SofiaPortrait"
         }
     }
 
@@ -51,6 +71,7 @@ enum DigitalHumanPersona: String, CaseIterable, Identifiable {
         switch self {
         case .lily: return .female
         case .leo: return .male
+        case .sofia: return .meijia
         }
     }
 }

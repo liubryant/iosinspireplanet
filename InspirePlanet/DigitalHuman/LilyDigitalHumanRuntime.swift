@@ -14,9 +14,9 @@ enum DuixDigitalHumanState: Equatable {
         case .idle:
             return "数字人待初始化"
         case .loading:
-            return "Lily 数字人加载中"
+            return "数字人加载中"
         case .ready:
-            return "Lily 数字人已接入"
+            return "数字人已接入"
         case .unavailable(let message), .failed(let message):
             return message
         }
@@ -39,7 +39,7 @@ final class LilyDigitalHumanController: ObservableObject {
     @Published private(set) var state: DuixDigitalHumanState = .idle
     @Published private(set) var persona: DigitalHumanPersona = {
         let saved = UserDefaults.standard.string(forKey: "inspireplanet.selected-persona")
-        return DigitalHumanPersona(rawValue: saved ?? "") ?? .lily
+        return DigitalHumanPersona(rawValue: saved ?? "") ?? .leo
     }()
 
     private let runtime = DuixDigitalHumanRuntimeBridge()
@@ -222,6 +222,8 @@ final class LilyDigitalHumanController: ObservableObject {
         stopSpeechMotionTimer()
         runtime.setPlaybackEndHandler(nil)
         currentPlaybackFailed = nil
+        runtime.clearAudioBuffer()
+        _ = runtime.stopMotion(quickly: true)
         #if DEBUG
         let elapsed = ProcessInfo.processInfo.systemUptime - speechStartedAt
         print("duix speech_end callback elapsed=\(String(format: "%.3f", elapsed))s")

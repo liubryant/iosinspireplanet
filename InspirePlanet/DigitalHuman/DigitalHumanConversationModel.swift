@@ -15,6 +15,7 @@ final class DigitalHumanConversationModel: ObservableObject {
     private let speaker = InspireSpeechSynthesizer()
     private let historyKey = "inspireplanet.digital-human.history"
     private var requestGeneration = 0
+    private var streamingTurnID: UUID?
     private let lilyGreetings = [
         "你好，我是 Lily，很高兴认识你。",
         "嗨，见到你真开心，今天想聊点什么？",
@@ -36,6 +37,16 @@ final class DigitalHumanConversationModel: ObservableObject {
         "嗨，朋友，我会认真听你说。",
         "你好，我是你的创意伙伴 Leo。",
         "欢迎回来，今天也一起寻找灵感吧。"
+    ]
+    private let sofiaGreetings = [
+        "你好，我是 Sofia，很高兴认识你。",
+        "嗨，我是 Sofia，今天想聊些什么？",
+        "欢迎来到灵感星球，我会认真听你说。",
+        "你好呀，很高兴能陪你一起寻找灵感。",
+        "见到你真好，有什么想法都可以告诉我。",
+        "欢迎回来，我是你的知心伙伴 Sofia。",
+        "嗨，朋友，今天也让我们轻松地聊一聊吧。",
+        "你好，我已经准备好陪伴你啦。"
     ]
 
     init() {
@@ -114,18 +125,39 @@ final class DigitalHumanConversationModel: ObservableObject {
             role: .system,
             content: "你是灵感星球的拟人数字人 \(persona.displayName)。请用自然、口语化、简洁的中文回答，内容适合语音播报。"
         )] + turns.suffix(12).map { InspireChatMessage(role: $0.role, content: $0.content) }
-        service.reply(to: context) { [weak self] result in
+        let assistantID = UUID()
+        streamingTurnID = assistantID
+        service.reply(to: context, onDelta: { [weak self] delta in
             DispatchQueue.main.async {
                 guard let self, generation == self.requestGeneration else { return }
+                if let index = self.turns.firstIndex(where: { $0.id == assistantID }) {
+                    let content = self.turns[index].content + delta
+                    self.turns[index] = DigitalHumanTurn(id: assistantID, role: .assistant, content: content)
+                } else if !delta.isEmpty {
+                    // 思考阶段只显示加载状态，收到首段正文后再创建人物回复框。
+                    self.turns.append(DigitalHumanTurn(id: assistantID, role: .assistant, content: delta))
+                }
+            }
+        }) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, generation == self.requestGeneration else { return }
+                self.streamingTurnID = nil
                 switch result {
                 case .success(let text):
                     let answer = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let turn = DigitalHumanTurn(role: .assistant, content: answer.isEmpty ? "我暂时没有拿到有效回答，请稍后再试。" : answer)
-                    self.turns.append(turn)
+                    let finalText = answer.isEmpty ? "我暂时没有拿到有效回答，请稍后再试。" : answer
+                    let turn = DigitalHumanTurn(id: assistantID, role: .assistant, content: finalText)
+                    if let index = self.turns.firstIndex(where: { $0.id == assistantID }) {
+                        self.turns[index] = turn
+                    } else {
+                        self.turns.append(turn)
+                    }
                     self.save()
                     self.activity = .idle
                     self.read(turn)
                 case .failure(let error):
+                    self.turns.removeAll { $0.id == assistantID && $0.content.isEmpty }
+                    self.save()
                     self.activity = .idle
                     self.errorMessage = error.localizedDescription
                 }
@@ -140,7 +172,12 @@ final class DigitalHumanConversationModel: ObservableObject {
 
     func playRandomGreeting() {
         guard canPlayGreeting else { return }
-        let greetings = persona == .lily ? lilyGreetings : leoGreetings
+        let greetings: [String]
+        switch persona {
+        case .leo: greetings = leoGreetings
+        case .lily: greetings = lilyGreetings
+        case .sofia: greetings = sofiaGreetings
+        }
         speak(greetings.randomElement() ?? greetings[0])
     }
 
@@ -163,6 +200,11 @@ final class DigitalHumanConversationModel: ObservableObject {
 
     func stopAll() {
         requestGeneration += 1
+        service.cancel()
+        if let id = streamingTurnID {
+            turns.removeAll { $0.id == id && $0.content.isEmpty }
+            streamingTurnID = nil
+        }
         recognizer.stop()
         stopSpeaking()
         activity = .idle

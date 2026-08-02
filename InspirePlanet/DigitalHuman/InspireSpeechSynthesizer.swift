@@ -13,6 +13,7 @@ final class InspireSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
     private var didFinishCurrentSpeech = false
     private var speechGeneration = 0
     private var digitalHumanFinishWorkItem: DispatchWorkItem?
+    private var digitalHumanSpeechStartedAt: TimeInterval = 0
     private var sentenceHighlightWorkItems: [DispatchWorkItem] = []
     private var duixPCMConverter: AVAudioConverter?
     private var duixPCMSourceFormat: AVAudioFormat?
@@ -50,6 +51,7 @@ final class InspireSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         activeUtterance = utterance
 
         if let digitalHuman = digitalHuman, digitalHuman.canDriveSpeech {
+            digitalHumanSpeechStartedAt = ProcessInfo.processInfo.systemUptime
             activeDigitalHuman = digitalHuman
             try? AVAudioSession.sharedInstance().setCategory(
                 .playAndRecord,
@@ -170,6 +172,10 @@ final class InspireSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
                         generation: generation
                     )
                     digitalHuman?.finishPushingSpeechAudio()
+                    self.schedulePCMPlaybackCompletionFallback(
+                        pcmByteCount: totalPCMBytes,
+                        generation: generation
+                    )
                 }
                 return
             }
@@ -262,11 +268,35 @@ final class InspireSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
 
     private func makeUtterance(_ text: String, voice: DigitalHumanVoice) -> AVSpeechUtterance {
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = voice == .male ? preferredMandarinMaleVoice() : preferredMandarinFemaleVoice()
-        utterance.rate = voice == .male ? 0.48 : 0.50
-        utterance.pitchMultiplier = voice == .male ? 1.0 : 1.12
+        switch voice {
+        case .male:
+            utterance.voice = preferredMandarinMaleVoice()
+            utterance.rate = 0.48
+            utterance.pitchMultiplier = 1.0
+        case .female:
+            utterance.voice = preferredMandarinFemaleVoice()
+            utterance.rate = 0.50
+            utterance.pitchMultiplier = 1.12
+        case .meijia:
+            utterance.voice = preferredMeijiaVoice()
+            utterance.rate = 0.50
+            utterance.pitchMultiplier = 1.0
+        }
         utterance.volume = 1.0
         return utterance
+    }
+
+    private func preferredMeijiaVoice() -> AVSpeechSynthesisVoice? {
+        let aliases = ["美嘉", "mei-jia", "mei_jia", "mei jia", "meijia"]
+        if let voice = AVSpeechSynthesisVoice.speechVoices().first(where: { voice in
+            let searchable = "\(voice.name) \(voice.identifier)".lowercased()
+            return voice.language.hasPrefix("zh") && aliases.contains { searchable.contains($0) }
+        }) {
+            return voice
+        }
+
+        // 未下载“美嘉”语音的设备仍使用普通话女声，避免回退成男声或无声。
+        return preferredMandarinFemaleVoice()
     }
 
     private func preferredMandarinMaleVoice() -> AVSpeechSynthesisVoice? {
@@ -363,6 +393,27 @@ final class InspireSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
         }
         digitalHumanFinishWorkItem = workItem
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: workItem)
+    }
+
+    /// Duix 偶尔不会为较长的 PCM 返回播放结束回调。根据实际生成的
+    /// 16 kHz/16-bit/mono 数据量计算播放终点，在音频应当耗尽后主动收尾。
+    private func schedulePCMPlaybackCompletionFallback(pcmByteCount: Int, generation: Int) {
+        guard pcmByteCount > 0 else { return }
+        digitalHumanFinishWorkItem?.cancel()
+        let duration = Double(pcmByteCount) / 32_000.0
+        let elapsed = ProcessInfo.processInfo.systemUptime - digitalHumanSpeechStartedAt
+        let remaining = max(2.0, duration - elapsed + 2.0)
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self,
+                  generation == self.speechGeneration,
+                  !self.didFinishCurrentSpeech else { return }
+            #if DEBUG
+            print("Duix PCM end callback missing, forcing completion duration=\(duration)s elapsed=\(elapsed)s")
+            #endif
+            self.finishSpeech()
+        }
+        digitalHumanFinishWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + remaining, execute: workItem)
     }
 
     private func convertToDuixPCM(_ sourceBuffer: AVAudioPCMBuffer) -> Data? {
