@@ -62,6 +62,15 @@ final class LilyDigitalHumanController: ObservableObject {
     func attach(to view: UIView) {
         latestHostView = view
         let viewID = ObjectIdentifier(view)
+
+        guard persona.supportsLiveDigitalHuman else {
+            initializedViewID = nil
+            isInitializing = false
+            didStartRunning = false
+            updateState(.unavailable("\(persona.displayName) 使用静态形象"))
+            return
+        }
+
         if initializedViewID == viewID {
             // The same persistent host is already initialized. SwiftUI may update the
             // representable frequently; do not rebind/restart Duix on those updates.
@@ -272,6 +281,12 @@ final class LilyDigitalHumanController: ObservableObject {
         didStartRunning = false
         persona = newPersona
         UserDefaults.standard.set(newPersona.rawValue, forKey: "inspireplanet.selected-persona")
+
+        guard newPersona.supportsLiveDigitalHuman else {
+            updateState(.unavailable("\(newPersona.displayName) 使用静态形象"))
+            return
+        }
+
         updateState(.loading)
 
         guard let hostView = latestHostView else {

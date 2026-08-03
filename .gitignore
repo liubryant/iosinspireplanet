@@ -11,6 +11,7 @@ xcuserdata/
 # Xcode build products
 DerivedData/
 build/
+Pods/
 *.xcarchive
 *.ipa
 *.dSYM

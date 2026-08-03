@@ -281,6 +281,10 @@ final class InspireSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
             utterance.voice = preferredMeijiaVoice()
             utterance.rate = 0.50
             utterance.pitchMultiplier = 1.0
+        case .han:
+            utterance.voice = preferredHanVoice()
+            utterance.rate = 0.48
+            utterance.pitchMultiplier = 1.0
         }
         utterance.volume = 1.0
         return utterance
@@ -297,6 +301,27 @@ final class InspireSpeechSynthesizer: NSObject, AVSpeechSynthesizerDelegate {
 
         // 未下载“美嘉”语音的设备仍使用普通话女声，避免回退成男声或无声。
         return preferredMandarinFemaleVoice()
+    }
+
+    private func preferredHanVoice() -> AVSpeechSynthesisVoice? {
+        let aliases = ["瀚", "han"]
+        if let voice = AVSpeechSynthesisVoice.speechVoices().first(where: { voice in
+            let name = voice.name.lowercased()
+            let nameParts = name
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+            let identifierParts = voice.identifier.lowercased()
+                .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+                .map(String.init)
+            return voice.language.hasPrefix("zh") && (
+                name.contains("瀚") || aliases.contains(where: { nameParts.contains($0) || identifierParts.contains($0) })
+            )
+        }) {
+            return voice
+        }
+
+        // 未下载“瀚”语音时回退到普通话男声。
+        return preferredMandarinMaleVoice()
     }
 
     private func preferredMandarinMaleVoice() -> AVSpeechSynthesisVoice? {

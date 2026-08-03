@@ -8,12 +8,18 @@ final class DigitalHumanConversationModel: ObservableObject {
     @Published var errorMessage: String?
     @Published private(set) var highlightedTurnID: UUID?
     @Published private(set) var highlightedRange: NSRange?
+    @Published private(set) var inspirationPoints: Int
+    @Published var isInsufficientPointsAlertPresented = false
+    @Published var isLoginRequiredAlertPresented = false
 
     let lily = LilyDigitalHumanController.shared
     private let service = InspireConversationService()
     private let recognizer = InspireSpeechRecognizer()
     private let speaker = InspireSpeechSynthesizer()
     private let historyKey = "inspireplanet.digital-human.history"
+    private static let inspirationPointsKey = "inspireplanet.inspiration-points"
+    private static let loginGiftedAccountsKey = "inspireplanet.inspiration-login-gift-accounts"
+    private static let loginGiftAmount = 50
     private var requestGeneration = 0
     private var streamingTurnID: UUID?
     private let lilyGreetings = [
@@ -48,8 +54,33 @@ final class DigitalHumanConversationModel: ObservableObject {
         "嗨，朋友，今天也让我们轻松地聊一聊吧。",
         "你好，我已经准备好陪伴你啦。"
     ]
+    private let kaiGreetings = [
+        "你好，我是 Kai，很高兴认识你。",
+        "嗨，我是 Kai，今天想一起聊点什么？",
+        "欢迎来到灵感星球，我已经准备好啦。",
+        "你好呀，有什么有趣的想法都可以告诉我。",
+        "见到你真开心，让我们开始今天的对话吧。",
+        "嗨，朋友，我会认真听你说。",
+        "你好，我是你的活力伙伴 Kai。",
+        "欢迎回来，今天也一起发现新灵感吧。"
+    ]
+    private let elenaFrostGreetings = [
+        "你好，我是 Elena Frost，很高兴认识你。",
+        "嗨，我是 Elena Frost，今天想聊些什么？",
+        "欢迎来到灵感星球，我会认真倾听你的想法。",
+        "你好呀，很高兴能陪你一起寻找灵感。",
+        "见到你真好，有什么想说的都可以告诉我。",
+        "欢迎回来，我是你的温暖伙伴 Elena Frost。",
+        "嗨，朋友，让我们轻松地聊一聊吧。",
+        "你好，我已经准备好陪伴你啦。"
+    ]
 
     init() {
+        if UserDefaults.standard.object(forKey: Self.inspirationPointsKey) == nil {
+            UserDefaults.standard.set(100, forKey: Self.inspirationPointsKey)
+        }
+        inspirationPoints = max(0, UserDefaults.standard.integer(forKey: Self.inspirationPointsKey))
+
         if let data = UserDefaults.standard.data(forKey: historyKey),
            let saved = try? JSONDecoder().decode([DigitalHumanTurn].self, from: data), !saved.isEmpty {
             turns = saved
@@ -57,6 +88,11 @@ final class DigitalHumanConversationModel: ObservableObject {
             turns = [DigitalHumanTurn(role: .assistant, content: "你好，我是 Lily。你可以直接说话，也可以输入文字和我交流。")]
         }
         migrateDefaultGreeting(for: lily.persona)
+
+        if UserDefaults.standard.bool(forKey: "inspire.user.isLoggedIn"),
+           let phone = UserDefaults.standard.string(forKey: "inspire.user.phone") {
+            applyLoginGiftIfNeeded(phone: phone)
+        }
     }
 
     var canSend: Bool {
@@ -69,6 +105,19 @@ final class DigitalHumanConversationModel: ObservableObject {
 
     var persona: DigitalHumanPersona {
         lily.persona
+    }
+
+    func applyLoginGiftIfNeeded(phone: String) {
+        let account = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !account.isEmpty else { return }
+
+        let defaults = UserDefaults.standard
+        var giftedAccounts = Set(defaults.stringArray(forKey: Self.loginGiftedAccountsKey) ?? [])
+        guard giftedAccounts.insert(account).inserted else { return }
+
+        inspirationPoints += Self.loginGiftAmount
+        defaults.set(inspirationPoints, forKey: Self.inspirationPointsKey)
+        defaults.set(Array(giftedAccounts), forKey: Self.loginGiftedAccountsKey)
     }
 
     func selectPersona(_ persona: DigitalHumanPersona) {
@@ -113,6 +162,18 @@ final class DigitalHumanConversationModel: ObservableObject {
     func send() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, activity != .thinking else { return }
+        guard let accessToken = InspireAccountSession.accessToken(), !accessToken.isEmpty else {
+            // 同步清理可能残留的本地登录标记，确保“去登录”进入登录页而非账号管理页。
+            InspireAccountSession.logout()
+            errorMessage = "请先登录账号，再继续和数字人对话。"
+            isLoginRequiredAlertPresented = true
+            return
+        }
+        guard inspirationPoints >= 10 else {
+            errorMessage = "当前灵感值不足，暂时无法继续对话。"
+            isInsufficientPointsAlertPresented = true
+            return
+        }
         stopSpeaking()
         draft = ""
         errorMessage = nil
@@ -153,6 +214,7 @@ final class DigitalHumanConversationModel: ObservableObject {
                         self.turns.append(turn)
                     }
                     self.save()
+                    self.consumeInspirationPoints()
                     self.activity = .idle
                     self.read(turn)
                 case .failure(let error):
@@ -177,6 +239,8 @@ final class DigitalHumanConversationModel: ObservableObject {
         case .leo: greetings = leoGreetings
         case .lily: greetings = lilyGreetings
         case .sofia: greetings = sofiaGreetings
+        case .kai: greetings = kaiGreetings
+        case .elenaFrost: greetings = elenaFrostGreetings
         }
         speak(greetings.randomElement() ?? greetings[0])
     }
@@ -219,6 +283,11 @@ final class DigitalHumanConversationModel: ObservableObject {
 
     private func save() {
         UserDefaults.standard.set(try? JSONEncoder().encode(turns), forKey: historyKey)
+    }
+
+    private func consumeInspirationPoints() {
+        inspirationPoints = max(0, inspirationPoints - 10)
+        UserDefaults.standard.set(inspirationPoints, forKey: Self.inspirationPointsKey)
     }
 
     private func migrateDefaultGreeting(for persona: DigitalHumanPersona) {

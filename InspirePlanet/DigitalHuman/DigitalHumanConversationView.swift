@@ -2,6 +2,11 @@ import SwiftUI
 import UIKit
 import Combine
 import Security
+import WebKit
+
+extension Notification.Name {
+    static let inspireAccountDidLogin = Notification.Name("inspire.account.did-login")
+}
 
 struct DigitalHumanConversationView: View {
     @ObservedObject var model: DigitalHumanConversationModel
@@ -28,6 +33,7 @@ struct DigitalHumanConversationView: View {
                 InspireSidebarView(
                     isLoggedIn: isLoggedIn,
                     phone: userPhone,
+                    inspirationPoints: model.inspirationPoints,
                     onLogin: {
                         if isLoggedIn && !userPhone.isEmpty {
                             withAnimation(.easeInOut(duration: 0.28)) { showAccountOverlay = true }
@@ -187,6 +193,34 @@ struct DigitalHumanConversationView: View {
             model.lily.setPageVisible(false)
             model.stopAll()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .inspireAccountDidLogin)) { notification in
+            guard let phone = notification.object as? String else { return }
+            model.applyLoginGiftIfNeeded(phone: phone)
+        }
+        .alert("暂时无法继续对话", isPresented: $model.isInsufficientPointsAlertPresented) {
+            if !isLoggedIn {
+                Button("去登录") {
+                    inputFocused = false
+                    presentedSheet = .account
+                }
+            }
+            Button("知道了", role: .cancel) {}
+        } message: {
+            if isLoggedIn {
+                Text("完成一次 AI 对话需要 10 个灵感值，你当前的灵感值不足。")
+            } else {
+                Text("完成一次 AI 对话需要 10 个灵感值。登录账号可领取 50 个灵感值，登录后再来继续聊吧。")
+            }
+        }
+        .alert("登录后继续对话", isPresented: $model.isLoginRequiredAlertPresented) {
+            Button("去登录") {
+                inputFocused = false
+                presentedSheet = .account
+            }
+            Button("暂不登录", role: .cancel) {}
+        } message: {
+            Text("登录账号后即可向数字人发送问题。首次登录还可领取 50 个灵感值。")
+        }
     }
 
     @ViewBuilder
@@ -196,7 +230,12 @@ struct DigitalHumanConversationView: View {
             InspireAccountView(onClose: closePresentedPage)
                 .preferredColorScheme(.light)
         case .sidebar(let page):
-            InspireSidebarDetailView(page: page, isLoggedIn: isLoggedIn, onClose: closePresentedPage)
+            InspireSidebarDetailView(
+                page: page,
+                isLoggedIn: isLoggedIn,
+                inspirationPoints: model.inspirationPoints,
+                onClose: closePresentedPage
+            )
                 .preferredColorScheme(.dark)
         }
     }
@@ -221,10 +260,10 @@ struct DigitalHumanConversationView: View {
                     Image(portraitAssetName)
                         .resizable().scaledToFill()
                         .frame(width: proxy.size.width, height: proxy.size.height).clipped()
-                        .opacity(showLiveLily ? 0 : 1)
+                        .opacity(showLiveLily && lily.persona.supportsLiveDigitalHuman ? 0 : 1)
                 }
                 LilyDigitalHumanSurface(controller: lily)
-                    .opacity(showLiveLily ? 1 : 0)
+                    .opacity(showLiveLily && lily.persona.supportsLiveDigitalHuman ? 1 : 0)
             }
             .contentShape(Rectangle())
             .onLongPressGesture(minimumDuration: 0.55) {
@@ -303,60 +342,71 @@ struct DigitalHumanConversationView: View {
     }
 
     private var personaSwitcher: some View {
-        HStack(spacing: 8) {
-            ForEach(DigitalHumanPersona.allCases) { persona in
-                Button {
-                    guard lily.persona != persona else { return }
-                    showLiveLily = false
-                    model.stopAll()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        model.selectPersona(persona)
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        ZStack {
-                            Circle()
-                                .fill(lily.persona == persona ? Color.white.opacity(0.24) : Color.black.opacity(0.12))
-                                .frame(width: 30, height: 30)
-                            Image(persona.thumbnailAssetName)
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 30, height: 30)
-                                .clipShape(Circle())
-                        }
-                        Text(persona.displayName)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                        if lily.persona == persona {
-                            Image(systemName: lily.state.isReady ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
-                                .font(.system(size: 12, weight: .bold))
-                        }
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 13)
-                    .frame(height: 46)
-                    .background(
-                        Group {
-                            if lily.persona == persona {
-                                LinearGradient(
-                                    colors: selectedPersonaGradient(for: persona),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            } else {
-                                Color.black.opacity(0.30)
+        ScrollViewReader { reader in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(DigitalHumanPersona.allCases) { persona in
+                        Button {
+                            guard lily.persona != persona else { return }
+                            showLiveLily = false
+                            model.stopAll()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                model.selectPersona(persona)
                             }
+                        } label: {
+                            HStack(spacing: 8) {
+                                ZStack {
+                                    Circle()
+                                        .fill(lily.persona == persona ? Color.white.opacity(0.24) : Color.black.opacity(0.12))
+                                        .frame(width: 30, height: 30)
+                                    Image(persona.thumbnailAssetName)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 30, height: 30)
+                                        .clipShape(Circle())
+                                }
+                                Text(persona.displayName)
+                                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                                if lily.persona == persona {
+                                    Image(systemName: lily.state.isReady || !persona.supportsLiveDigitalHuman ? "checkmark.circle.fill" : "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 12, weight: .bold))
+                                }
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 13)
+                            .frame(height: 46)
+                            .background(
+                                Group {
+                                    if lily.persona == persona {
+                                        LinearGradient(
+                                            colors: selectedPersonaGradient(for: persona),
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    } else {
+                                        Color.black.opacity(0.30)
+                                    }
+                                }
+                            )
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(lily.persona == persona ? 0.55 : 0.22), lineWidth: 1))
+                            .shadow(color: Color.black.opacity(0.18), radius: 10, y: 4)
                         }
-                    )
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.white.opacity(lily.persona == persona ? 0.55 : 0.22), lineWidth: 1))
-                    .shadow(color: Color.black.opacity(0.18), radius: 10, y: 4)
+                        .buttonStyle(.plain)
+                        .disabled(model.activity != .idle || lily.state == .loading)
+                        .id(persona.id)
+                    }
                 }
-                .buttonStyle(.plain)
-                .disabled(model.activity != .idle || lily.state == .loading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+            }
+            .onAppear { reader.scrollTo(lily.persona.id, anchor: .center) }
+            .onChange(of: lily.persona) { persona in
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    reader.scrollTo(persona.id, anchor: .center)
+                }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 5)
         .background(.ultraThinMaterial.opacity(0.72))
         .clipShape(Capsule())
         .padding(.horizontal, 16)
@@ -371,12 +421,20 @@ struct DigitalHumanConversationView: View {
             return [Color(red: 0.48, green: 0.39, blue: 0.94), Color(red: 0.91, green: 0.42, blue: 0.72)]
         case .sofia:
             return [Color(red: 0.23, green: 0.52, blue: 0.91), Color(red: 0.55, green: 0.43, blue: 0.86)]
+        case .kai:
+            return [Color(red: 0.12, green: 0.58, blue: 0.86), Color(red: 0.22, green: 0.74, blue: 0.60)]
+        case .elenaFrost:
+            return [Color(red: 0.40, green: 0.55, blue: 0.82), Color(red: 0.72, green: 0.53, blue: 0.75)]
         }
     }
 
     private func revealReadyLily() {
+        guard lily.persona.supportsLiveDigitalHuman else {
+            showLiveLily = false
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            guard model.lily.state.isReady else { return }
+            guard model.lily.persona.supportsLiveDigitalHuman, model.lily.state.isReady else { return }
             showLiveLily = true
         }
     }
@@ -527,6 +585,7 @@ private enum InspireSidebarPage: String, Identifiable {
 private struct InspireSidebarView: View {
     let isLoggedIn: Bool
     let phone: String
+    let inspirationPoints: Int
     let onLogin: () -> Void
     let onSelect: (InspireSidebarPage) -> Void
     let onLogout: () -> Void
@@ -538,7 +597,6 @@ private struct InspireSidebarView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 18) {
                     accountHeader
-                    membershipCard
                     menuCard
 
                     if isLoggedIn {
@@ -637,7 +695,7 @@ private struct InspireSidebarView: View {
 
     private var menuCard: some View {
         VStack(spacing: 0) {
-            row(title: "灵感值中心", icon: "flame.fill", tint: Color(red: 0.36, green: 1, blue: 0.25), trailing: isLoggedIn ? "216.00" : "--") {
+            row(title: "灵感值中心", icon: "flame.fill", tint: Color(red: 0.36, green: 1, blue: 0.25), trailing: "\(inspirationPoints)") {
                 onSelect(.inspiration)
             }
             Divider().overlay(Color.white.opacity(0.055)).padding(.leading, 18)
@@ -827,7 +885,7 @@ private struct InspireAccountView: View {
                     .font(.system(size: 12)).foregroundColor(.gray).padding(.bottom, 24)
             }
             .background(Color.white.ignoresSafeArea())
-            .navigationBarTitle("", displayMode: .inline)
+            .navigationBarTitle("登录", displayMode: .inline)
             .navigationBarItems(leading: navigationBackButton(action: close))
         }
         .navigationViewStyle(.stack)
@@ -838,19 +896,25 @@ private struct InspireAccountView: View {
             ZStack {
                 Color.black.opacity(0.28).ignoresSafeArea().onTapGesture { close() }
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 10) {
-                        Button(action: close) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(inspireText)
-                                .frame(width: 34, height: 34)
+                    ZStack {
+                        Text("账号管理")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(inspireText)
+                            .frame(maxWidth: .infinity)
+                        HStack {
+                            Button(action: close) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundColor(inspireText)
+                                    .frame(width: 34, height: 34)
+                            }
+                            Spacer()
                         }
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("账号管理").font(.system(size: 22, weight: .bold)).foregroundColor(inspireText)
-                            Text("管理当前登录账号").font(.system(size: 13)).foregroundColor(.gray)
-                        }
-                        Spacer()
                     }
+                    Text("管理当前登录账号")
+                        .font(.system(size: 13))
+                        .foregroundColor(.gray)
+                        .frame(maxWidth: .infinity)
 
                     HStack(spacing: 14) {
                         ZStack {
@@ -1115,6 +1179,7 @@ enum InspireAccountSession {
         UserDefaults.standard.set(true, forKey: "inspire.user.isLoggedIn")
         UserDefaults.standard.set(phone, forKey: "inspire.user.phone")
         try? InspireKeychainStore().set(token, account: "inspire.user.accessToken")
+        NotificationCenter.default.post(name: .inspireAccountDidLogin, object: phone)
     }
     static func logout() {
         UserDefaults.standard.set(false, forKey: "inspire.user.isLoggedIn")
@@ -1185,13 +1250,17 @@ private final class InspireAuthService {
 private struct InspireSidebarDetailView: View {
     let page: InspireSidebarPage
     let isLoggedIn: Bool
+    let inspirationPoints: Int
     var onClose: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
+    @State private var legalDocument: InspireLegalDocument?
 
     var body: some View {
         NavigationView {
             Group {
-                if page == .about {
+                if let displayedLegalDocument {
+                    legalDocumentPage(displayedLegalDocument)
+                } else if page == .about {
                     aboutContent
                 } else {
                     VStack(spacing: 18) {
@@ -1210,14 +1279,22 @@ private struct InspireSidebarDetailView: View {
                     .padding(28)
                 }
             }
-            .navigationTitle(page.title)
+            .navigationTitle(currentNavigationTitle)
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(leading: Button(action: close) {
+            .navigationBarHidden(displayedLegalDocument != nil)
+            .navigationBarItems(leading: Button(action: navigateBack) {
                 Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
             })
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(currentNavigationTitle)
+                        .font(.system(size: 17, weight: .semibold))
+                        .lineLimit(1)
+                }
+            }
         }
         .navigationViewStyle(.stack)
-        .edgeSwipeBack(perform: close)
+        .edgeSwipeBack(perform: navigateBack)
     }
 
     private var description: String {
@@ -1225,12 +1302,53 @@ private struct InspireSidebarDetailView: View {
         case .membership:
             return isLoggedIn ? "会员权益与订阅服务正在准备中。" : "请先登录账户，再查看和开通会员权益。"
         case .inspiration:
-            return isLoggedIn ? "当前灵感值：216.00\n后续可在这里查看获取与使用记录。" : "登录后可查看灵感值余额与明细。"
+            return "当前灵感值：\(inspirationPoints)\n登录获赠50个灵感值（每个账号限一次）。\n每完成一次AI对话消耗10个灵感值。"
         case .customerService:
             return "如需帮助，请通过应用商店中的开发者联系方式联系我们。"
         case .about:
             return "灵感星球\n与 AI 数字人自然对话，随时记录和激发你的灵感。"
         }
+    }
+
+    private var currentNavigationTitle: String {
+        if let displayedLegalDocument {
+            return displayedLegalDocument.title
+        }
+        return page.title
+    }
+
+    private var displayedLegalDocument: InspireLegalDocument? {
+        legalDocument ?? (page == .customerService ? .customerService : nil)
+    }
+
+    private func legalDocumentPage(_ document: InspireLegalDocument) -> some View {
+        VStack(spacing: 0) {
+            ZStack {
+                Text(document.title)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+
+                HStack {
+                    Button(action: navigateBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(.black)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
+            }
+            .frame(height: 44)
+            .background(Color.white)
+
+            Divider()
+
+            InspireLegalWebView(url: document.url)
+        }
+        .background(Color.white.ignoresSafeArea())
     }
 
     private var aboutContent: some View {
@@ -1263,11 +1381,17 @@ private struct InspireSidebarDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 VStack(spacing: 0) {
-                    aboutRow(icon: "doc.text", title: "用户协议")
+                    aboutRow(icon: "doc.text", title: "用户协议") {
+                        legalDocument = .agreement
+                    }
                     Divider().overlay(Color.white.opacity(0.08)).padding(.leading, 52)
-                    aboutRow(icon: "hand.raised", title: "隐私政策")
+                    aboutRow(icon: "hand.raised", title: "隐私政策") {
+                        legalDocument = .privacy
+                    }
                     Divider().overlay(Color.white.opacity(0.08)).padding(.leading, 52)
-                    aboutRow(icon: "headphones", title: "联系客服")
+                    aboutRow(icon: "headphones", title: "联系客服") {
+                        legalDocument = .customerService
+                    }
                 }
                 .background(Color.white.opacity(0.07))
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -1285,20 +1409,24 @@ private struct InspireSidebarDetailView: View {
         .background(Color(red: 0.08, green: 0.09, blue: 0.11).ignoresSafeArea())
     }
 
-    private func aboutRow(icon: String, title: String) -> some View {
-        HStack(spacing: 13) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.indigo)
-                .frame(width: 26)
-            Text(title).font(.system(size: 15))
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.secondary)
+    private func aboutRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 13) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.indigo)
+                    .frame(width: 26)
+                Text(title).font(.system(size: 15))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 15)
+            .frame(height: 56)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, 15)
-        .frame(height: 56)
+        .buttonStyle(.plain)
     }
 
     private var appVersion: String {
@@ -1307,6 +1435,62 @@ private struct InspireSidebarDetailView: View {
 
     private func close() {
         if let onClose { onClose() } else { dismiss() }
+    }
+
+    private func navigateBack() {
+        if legalDocument != nil {
+            legalDocument = nil
+        } else {
+            close()
+        }
+    }
+}
+
+private enum InspireLegalDocument: String, Identifiable {
+    case agreement
+    case privacy
+    case customerService
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .agreement: return "用户协议"
+        case .privacy: return "隐私政策"
+        case .customerService: return "联系客服"
+        }
+    }
+
+    var url: URL {
+        switch self {
+        case .agreement:
+            return URL(string: "https://www.cjym123.cn/agreement_inspireplanet.html")!
+        case .privacy:
+            return URL(string: "https://www.cjym123.cn/privacy_inspireplanet.html")!
+        case .customerService:
+            return URL(string: "https://www.cjym123.cn/feedback_agentclaw.html")!
+        }
+    }
+}
+
+private struct InspireLegalWebView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.isOpaque = false
+        webView.backgroundColor = .white
+        webView.scrollView.backgroundColor = .white
+        webView.allowsBackForwardNavigationGestures = true
+        webView.load(URLRequest(url: url, cachePolicy: .reloadRevalidatingCacheData))
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        guard webView.url != url else { return }
+        webView.load(URLRequest(url: url, cachePolicy: .reloadRevalidatingCacheData))
     }
 }
 
