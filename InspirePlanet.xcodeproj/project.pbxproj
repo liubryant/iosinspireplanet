@@ -8,7 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		0050D481D015574EE18DF5B7 /* LilyDigitalHumanRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68703A86561F76FBBCD480A6 /* LilyDigitalHumanRuntime.swift */; };
+		0A6F142EE87A8D65F0A49A57 /* InspirePrivacyAgreement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A6F142EE87A8D65F0A49A58 /* InspirePrivacyAgreement.swift */; };
+		0A6F142EE87A8D65F0A49A59 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0A6F142EE87A8D65F0A49A60 /* PrivacyInfo.xcprivacy */; };
 		1ABC9CEA4AAECA4F8827B08B /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8EF13030981011EDB77CF8CA /* Foundation.framework */; };
+		1D5DCC39DB35C4942AF6094C /* Pods_InspirePlanet.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 102BF2124C68939767081131 /* Pods_InspirePlanet.framework */; };
 		2BD86758441F7F19008863CF /* DigitalHumanConversationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B8AF4D53515FF7B93DD8D24 /* DigitalHumanConversationModel.swift */; };
 		2D4CCE76179332B3B65FC1AF /* InspireLaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 3D0B2E946B4A5C2F33E34960 /* InspireLaunchScreen.storyboard */; };
 		4F5FA0BDA276EEB2029E1DF7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A0A04F0A92DE1CF1CE326D77 /* Assets.xcassets */; };
@@ -59,11 +62,16 @@
 
 /* Begin PBXFileReference section */
 		0459E758E2E36FCE38FCD2FE /* DigitalHumanConversationModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DigitalHumanConversationModels.swift; path = DigitalHuman/DigitalHumanConversationModels.swift; sourceTree = "<group>"; };
+		0A6F142EE87A8D65F0A49A58 /* InspirePrivacyAgreement.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InspirePrivacyAgreement.swift; path = App/InspirePrivacyAgreement.swift; sourceTree = "<group>"; };
+		0A6F142EE87A8D65F0A49A60 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		1028F096697E4DD301D8F9C7 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		102BF2124C68939767081131 /* Pods_InspirePlanet.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_InspirePlanet.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		19C01007B9B20979AF3F3014 /* InspireSpeechSynthesizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InspireSpeechSynthesizer.swift; path = DigitalHuman/InspireSpeechSynthesizer.swift; sourceTree = "<group>"; };
+		260CF71DAFFA3E533BCD566D /* Pods-InspirePlanet.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InspirePlanet.release.xcconfig"; path = "Target Support Files/Pods-InspirePlanet/Pods-InspirePlanet.release.xcconfig"; sourceTree = "<group>"; };
 		3B8AF4D53515FF7B93DD8D24 /* DigitalHumanConversationModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DigitalHumanConversationModel.swift; path = DigitalHuman/DigitalHumanConversationModel.swift; sourceTree = "<group>"; };
 		3D0B2E946B4A5C2F33E34960 /* InspireLaunchScreen.storyboard */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file.storyboard; path = InspireLaunchScreen.storyboard; sourceTree = "<group>"; };
 		4CC5966447F746C1A796E5E1 /* LilyDigitalHumanSurface.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LilyDigitalHumanSurface.swift; path = DigitalHuman/LilyDigitalHumanSurface.swift; sourceTree = "<group>"; };
+		500879D8FD65EE8DAC3432CB /* Pods-InspirePlanet.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-InspirePlanet.debug.xcconfig"; path = "Target Support Files/Pods-InspirePlanet/Pods-InspirePlanet.debug.xcconfig"; sourceTree = "<group>"; };
 		53FDE3F47C8EC62524CD2687 /* duix */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = duix; path = Resources/duix; sourceTree = "<group>"; };
 		60FCCA30B3F65ED0A776CD34 /* InspireConversationService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InspireConversationService.swift; path = Networking/InspireConversationService.swift; sourceTree = "<group>"; };
 		64CE703CF4F9E293A0F7CCA8 /* InspirePlanetRootView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = InspirePlanetRootView.swift; path = App/InspirePlanetRootView.swift; sourceTree = "<group>"; };
@@ -85,6 +93,7 @@
 			files = (
 				1ABC9CEA4AAECA4F8827B08B /* Foundation.framework in Frameworks */,
 				EC337C16E719AC76498D4052 /* GJLocalDigitalSDK.framework in Frameworks */,
+				1D5DCC39DB35C4942AF6094C /* Pods_InspirePlanet.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -98,6 +107,7 @@
 				3E9A790A00BE90E7633845ED /* Frameworks */,
 				25D3FF41A027AFA3382DFF59 /* InspirePlanet */,
 				BD92A91CA844567C47C0D505 /* GJLocalDigitalSDK.xcodeproj */,
+				98EAA21D09078687D13AAB66 /* Pods */,
 			);
 			sourceTree = "<group>";
 		};
@@ -114,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				E7EAD048666D2A742F40B722 /* InspirePlanetApp.swift */,
+				0A6F142EE87A8D65F0A49A58 /* InspirePrivacyAgreement.swift */,
 				64CE703CF4F9E293A0F7CCA8 /* InspirePlanetRootView.swift */,
 				3B8AF4D53515FF7B93DD8D24 /* DigitalHumanConversationModel.swift */,
 				0459E758E2E36FCE38FCD2FE /* DigitalHumanConversationModels.swift */,
@@ -128,6 +139,7 @@
 				3D0B2E946B4A5C2F33E34960 /* InspireLaunchScreen.storyboard */,
 				53FDE3F47C8EC62524CD2687 /* duix */,
 				1028F096697E4DD301D8F9C7 /* Info.plist */,
+				0A6F142EE87A8D65F0A49A60 /* PrivacyInfo.xcprivacy */,
 			);
 			name = InspirePlanet;
 			path = InspirePlanet;
@@ -137,6 +149,7 @@
 			isa = PBXGroup;
 			children = (
 				7742B658B7B0241C28F3855F /* iOS */,
+				102BF2124C68939767081131 /* Pods_InspirePlanet.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -149,6 +162,16 @@
 			name = iOS;
 			sourceTree = "<group>";
 		};
+		98EAA21D09078687D13AAB66 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				260CF71DAFFA3E533BCD566D /* Pods-InspirePlanet.release.xcconfig */,
+				500879D8FD65EE8DAC3432CB /* Pods-InspirePlanet.debug.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -156,6 +179,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = D8C656DFA953685D61CC8E3E /* Build configuration list for PBXNativeTarget "InspirePlanet" */;
 			buildPhases = (
+				687CD90140BC151A9D40DB73 /* [CP] Check Pods Manifest.lock */,
 				90D77EF5B4880904A6C70F90 /* Sources */,
 				F95C0E605C2F801FE2EF9D84 /* Frameworks */,
 				252822A8E352386A56688D6D /* Resources */,
@@ -222,6 +246,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4F5FA0BDA276EEB2029E1DF7 /* Assets.xcassets in Resources */,
+				0A6F142EE87A8D65F0A49A59 /* PrivacyInfo.xcprivacy in Resources */,
 				2D4CCE76179332B3B65FC1AF /* InspireLaunchScreen.storyboard in Resources */,
 				6A2DAB5DC95824191BBC358F /* duix in Resources */,
 			);
@@ -229,12 +254,38 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		687CD90140BC151A9D40DB73 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-InspirePlanet-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		90D77EF5B4880904A6C70F90 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				BC10E6399D5C9C73848DF69F /* InspirePlanetApp.swift in Sources */,
+				0A6F142EE87A8D65F0A49A57 /* InspirePrivacyAgreement.swift in Sources */,
 				775193CC19520F563886DFB1 /* InspirePlanetRootView.swift in Sources */,
 				2BD86758441F7F19008863CF /* DigitalHumanConversationModel.swift in Sources */,
 				D4196D32BFD4734F374E36E8 /* DigitalHumanConversationModels.swift in Sources */,
@@ -260,6 +311,7 @@
 /* Begin XCBuildConfiguration section */
 		094D0D53A12E060267D5F084 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 500879D8FD65EE8DAC3432CB /* Pods-InspirePlanet.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -407,6 +459,7 @@
 		};
 		EF9CD7B72AE049616C5CB4F8 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 260CF71DAFFA3E533BCD566D /* Pods-InspirePlanet.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
